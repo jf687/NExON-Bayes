@@ -1,3 +1,8 @@
+install.packages("renv")
+library(renv)
+
+renv::restore()
+
 source("aux_files/net_gen.R")
 source("aux_files/performance_metrics.R")
 source("aux_files/selection_methods.R")
