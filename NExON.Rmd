@@ -40,7 +40,7 @@ ts <- 1:4
 
 ```
 
-We now generate four correspondning precision matrices with P = 50 variables. To do this, we use our function `Create_Cn_networks` which implements an algorithm that generates symmetric positive definite matrices, where a fraction of entries are (linearly) dependent on the covariate ordinal value that corresponds to each matrix. We set the `frac_change` variable = 0.4, which means 40% of present edges will decrease with covariate and the same amount of non-edges will increase with covariate. The function also generates normally distributed data from the resulting (inverse) precision matrices. In this example, there are N = 150 samples drawn for each of the four precision matrices (labelled as `Ys`).
+We now generate four correspondning precision matrices with P = 50 variables. To do this, we use our function `Create_Cn_networks()` which implements an algorithm that generates symmetric positive definite matrices, where a fraction of entries are (linearly) dependent on the covariate ordinal value that corresponds to each matrix. We set the `frac_change` variable = 0.4, which means 40% of present edges will decrease with covariate and the same amount of non-edges will increase with covariate. The function also generates normally distributed data from the resulting (inverse) precision matrices. In this example, there are N = 150 samples drawn for each of the four precision matrices (labelled as `Ys`).
 
 ```{r networks, echo=TRUE}
 
@@ -50,15 +50,15 @@ Ys <- nets$Ys
 
 ```
 
-## Finding optimal $\nu_0$s
+## Finding optimal $\nu_0$ s
 Now that we have our true precision matrices and our simulated data, we begin to perform joint graphical estimation using NExON-Bayes. Firstly, values for each networks optimal $\nu_0$ must be found. To do this, we initialise an empty list (`v0_list`) and then use our function `select_optimal_v0_t()` which performs a line search over a range of $\nu_0$ values and returns the value that maximises the extended Bayesian Information Criteria (eBIC) in the vanilla single network estimation case. The tuning parameter, $\gamma$ is set to 0.35. 
 
-```{r v0, echo=TRUE}
+```{r v0, echo = TRUE, results="hide", warning=FALSE, fig.show= "none"}
 v0_list <- list()
 
 # Select optimal v0s
 for(c in 1:length(ts)){
-  v0_list[[c]] <- select_optimal_v0_t(Ys[[c]], gamma = 0.35)$optimal_v0
+  v0_list[[c]] <- select_optimal_v0_t(Ys[[c]], gamma = 0.35, plot_ = FALSE)$optimal_v0
 }
 
 ```
@@ -66,7 +66,7 @@ for(c in 1:length(ts)){
 ## Performing Inference
 We now have data and a list of $\nu_0$ values, so can call the function `NExON()` to perform graphical estimation. We then use Posterior Probability of inclusion, PPI (`m_deltas`), thresholding at a standard value of 0.5. This means that any entries with a corresponding PPI of less than 50% are set to zero:
 
-```{r inference, include= FALSE}
+```{r inference, include= FALSE, results="hide"}
 out <- NExON(Ys, ts, v0_list = v0_list, debug = T)
 out_nets<- lapply(out$estimates$m_deltas, function(x) abs(x)> 0.5)
 
