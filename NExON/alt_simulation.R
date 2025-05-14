@@ -1,7 +1,7 @@
 #
 #path = dirname(rstudioapi::getSourceEditorContext()$path)
-source("BayCON/functions.R")
-source("BayCON/BayCON_func.R")
+source("NExON/functions.R")
+source("NExON/NExON_func.R")
 
 #
 Tn <- 5
@@ -56,7 +56,7 @@ Ys <- lapply(ans, function(x)x$Y)
 
 # inference
 #
-out <- BayCON(Ys,
+out <- NExON(Ys,
            ts,
            debug = T,
            v0_list = rep(0.1,5))

@@ -14,11 +14,11 @@
 #' Ys[[1]] <- matrix(rnorm(Nt1 * P), Nt1, P)
 #' Ys[[2]] <- matrix(rnorm(Nt2 * P), Nt2, P)
 #' ts <- 1:2
-#' ans <- BayCON(Ys, ts, debug = T)
+#' ans <- NExON(Ys, ts, debug = T)
 
-source('BayCON/functions.R')
+source('NExON/functions.R')
 
-BayCON <- function(Ys,
+NExON <- function(Ys,
                 ts,
                 list_hyper = NULL,
                 list_init = NULL,

@@ -1,0 +1,151 @@
+---
+title: "NExON-Bayes"
+author: "Joseph Feest"
+date: "2025-05-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+```{r packages, include= FALSE}
+install.packages("renv")
+library(renv)
+
+renv::restore()
+
+source("aux_files/net_gen.R")
+source("aux_files/performance_metrics.R")
+source("aux_files/selection_methods.R")
+source("aux_files/make_plots.R")
+source("NExON/NExON_func.R")
+source("NExON/functions.R")
+source("SSL/fun_GM.R")
+source("SSL/fun_utils.R")
+source("SSL/GM.R")
+
+library(ggplot2)
+```
+
+## Simulating Data
+
+For this example, we simulate 4 networks and assign covariate values 1,2,3,4.
+
+```{r covariate_initialisation, echo=TRUE}
+ts <- 1:4
+
+```
+
+We now generate four correspondning precision matrices with P = 50 variables. To do this, we use our function `Create_Cn_networks` which implements an algorithm that generates symmetric positive definite matrices, where a fraction of entries are (linearly) dependent on the covariate ordinal value that corresponds to each matrix. We set the `frac_change` variable = 0.4, which means 40% of present edges will decrease with covariate and the same amount of non-edges will increase with covariate. The function also generates normally distributed data from the resulting (inverse) precision matrices. In this example, there are N = 150 samples drawn for each of the four precision matrices (labelled as `Ys`).
+
+```{r networks, echo=TRUE}
+
+nets <- create_Cn_networks(P = 50, Cn = 4, seed_1 = 252, seed_2 = 123, frac_change = 0.4, Ns_sample = c(150,150,150))
+
+Ys <- nets$Ys
+
+```
+
+## Finding optimal $\nu_0$s
+Now that we have our true precision matrices and our simulated data, we begin to perform joint graphical estimation using NExON-Bayes. Firstly, values for each networks optimal $\nu_0$ must be found. To do this, we initialise an empty list (`v0_list`) and then use our function `select_optimal_v0_t()` which performs a line search over a range of $\nu_0$ values and returns the value that maximises the extended Bayesian Information Criteria (eBIC) in the vanilla single network estimation case. The tuning parameter, $\gamma$ is set to 0.35. 
+
+```{r v0, echo=TRUE}
+v0_list <- list()
+
+# Select optimal v0s
+for(c in 1:length(ts)){
+  v0_list[[c]] <- select_optimal_v0_t(Ys[[c]], gamma = 0.35)$optimal_v0
+}
+
+```
+
+## Performing Inference
+We now have data and a list of $\nu_0$ values, so can call the function `NExON()` to perform graphical estimation. We then use Posterior Probability of inclusion, PPI (`m_deltas`), thresholding at a standard value of 0.5. This means that any entries with a corresponding PPI of less than 50% are set to zero:
+
+```{r inference, include= FALSE}
+out <- NExON(Ys, ts, v0_list = v0_list, debug = T)
+out_nets<- lapply(out$estimates$m_deltas, function(x) abs(x)> 0.5)
+
+```
+
+## Assessing Performance
+With our results, we can calculate the precision and recall of the estimates, along with a confusion matrix:
+
+```{r performance, echo=TRUE, fig.show='hold'}
+eval_nets <- evaluate_network_list(nets$As, out_nets,0.5)
+conf.mat <- eval_nets$conf.mat
+cat("Precision achieved:\n",precision(conf.mat),"\n")
+cat("Recall achieved:\n",recall(conf.mat),"\n")
+```
+## Plotting Results
+We can also plot the estimated networks:
+
+```{r est_graphs, echo=TRUE, fig.show='hold'}
+plot.new()
+layout <- create_layout(nets$As[[1]])
+create_network_plots(out_nets, layout_coords = layout)
+
+```
+
+And compare to the true networks:
+
+```{r true_graphs, echo=TRUE, fig.show='hold'}
+plot.new()
+create_network_plots(nets$As, layout_coords = layout,
+                     color = "blue", edge_color = "green")
+```
+
+To check the convergence, we plot the ELBO at the M-Step and total ELBO at each iteration:
+
+```{r ELBO, echo=TRUE, fig.show='hold'}
+plot.new()
+par(mfrow = c(1,2))
+plot(out$debugs$vec_ELBO_CM, xlab = "iterations", ylab = "ELBOs at M-step")
+plot(unlist(out$debugs$list_ELBO), xlab = "iterations", ylab = "ELBOs")
+```
+
+Finally, we can plot the distributions of $\beta_{ij}$ and $\zeta_{ij}$:
+
+```{r beta_zeta, echo=TRUE, fig.show='hold'}
+plot.new()
+par(mfrow = c(1,2))
+
+data <- out$estimates$mu_beta[upper.tri(out$estimates$mu_beta)]
+data_frame <- data.frame(data)
+
+ggplot(data = data_frame, aes(x = data)) +
+  geom_histogram(binwidth = 0.01, color = "black", fill = "skyblue", alpha = 0.7) +
+  stat_bin(binwidth = 0.01, geom = "text", aes(label = ..count..), vjust = -0.5) +
+  labs(x = "(a) beta", y = "Frequency", title = "") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    panel.grid.major = element_line(size = 0.5, linetype = 'dashed', color = 'gray'),
+    panel.grid.minor = element_line(size = 0.25, linetype = 'dashed', color = 'gray')
+  )
+
+data <- out$estimates$mu_zeta[upper.tri(out$estimates$mu_zeta)]
+data_frame <- data.frame(data)
+
+ggplot(data = data_frame, aes(x = data)) +
+  geom_histogram(binwidth = 0.5, color = "black", fill = "navyblue", alpha = 0.7) +
+  stat_bin(binwidth = 0.5, geom = "text", aes(label = ..count..), vjust = -0.25) +
+  labs(x = "(b) zeta", y = "Frequency", title = "") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    panel.grid.major = element_line(size = 0.5, linetype = 'dashed', color = 'gray'),
+    panel.grid.minor = element_line(size = 0.25, linetype = 'dashed', color = 'gray')
+  )
+
+```
+
+
